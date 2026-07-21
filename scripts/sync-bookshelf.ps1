@@ -1,4 +1,4 @@
-param([switch]$SkipOcr)
+param([switch]$SkipOcr, [switch]$Publish)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Join-Path $root 'web\public\data\books.json'
@@ -87,3 +87,8 @@ WHERE status = "Review" OR status = "검토 필요"
 '@
 Set-Content -Encoding UTF8 -LiteralPath (Join-Path $vault 'My Bookshelf.md') -Value $dashboard
 Write-Host "Updated $($books.Count) books and the Obsidian vault."
+
+if($Publish){
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'publish-bookshelf.ps1')
+  if($LASTEXITCODE -ne 0){ throw 'The public website update failed.' }
+}
