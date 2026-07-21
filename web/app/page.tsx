@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import catalog from "../public/data/books.json";
+import MapView from "./map-view";
 
 type Book = { id:number; title:string; author:string; publisher:string; year:number|null; genre:string; language:string; shelf:string; confidence:"확인"|"검토 필요"; color:string; rating:number; hidden:boolean; sourcePhoto?:string };
 const PASSWORD_HASH="b5ac8ff9fde613ff3122ffcab1cb500a6a18aa1464ca10d69a0b2e7c690a79d2";
@@ -56,21 +57,6 @@ const keyLabel:Record<string,string>={genre:"장르",author:"저자",publisher:"
 
 function Stars({value,onChange}:{value:number,onChange:(v:number)=>void}) { return <div className="stars" aria-label={`별점 ${value}점`}>{[1,2,3,4,5].map(n=><button key={n} onClick={()=>onChange(n===value?0:n)} aria-label={`${n}점`} className={n<=value?"on":""}>★</button>)}</div> }
 
-function MapView({books,mapKey}:{books:Book[],mapKey:typeof mapKeys[number]}){
-  const ref=useRef<HTMLCanvasElement>(null);
-  useEffect(()=>{
-    const canvas=ref.current;if(!canvas)return; const box=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-    canvas.width=box.width*dpr;canvas.height=box.height*dpr;const c=canvas.getContext("2d")!;c.scale(dpr,dpr);c.clearRect(0,0,box.width,box.height);
-    const values=[...new Set(books.map(b=>String(b[mapKey])))]; const center={x:box.width/2,y:box.height/2};
-    const groups=values.map((v,i)=>({v,x:center.x+Math.cos((i/values.length)*Math.PI*2)*Math.min(box.width*.31,270),y:center.y+Math.sin((i/values.length)*Math.PI*2)*Math.min(box.height*.32,180)}));
-    const nodes=books.map((b,i)=>{const g=groups.find(g=>g.v===String(b[mapKey]))!;const same=books.filter(x=>String(x[mapKey])===g.v);const j=same.indexOf(b);const angle=(j/same.length)*Math.PI*2;return{b,x:g.x+Math.cos(angle)*Math.min(82,35+same.length*7),y:g.y+Math.sin(angle)*Math.min(65,30+same.length*5),g}});
-    c.lineWidth=1;c.strokeStyle="#d7ccbb";nodes.forEach(n=>{c.beginPath();c.moveTo(n.x,n.y);c.lineTo(n.g.x,n.g.y);c.stroke()});
-    groups.forEach(g=>{c.fillStyle="#213e36";c.beginPath();c.arc(g.x,g.y,25,0,Math.PI*2);c.fill();c.fillStyle="#fff";c.font="600 11px Arial";c.textAlign="center";c.fillText(g.v.length>8?g.v.slice(0,8)+"…":g.v,g.x,g.y+4)});
-    nodes.forEach(n=>{c.fillStyle=n.b.color;c.beginPath();c.arc(n.x,n.y,10,0,Math.PI*2);c.fill();c.strokeStyle="#fff";c.lineWidth=2;c.stroke();c.fillStyle="#4b4238";c.font="11px Arial";c.textAlign="center";c.fillText(n.b.title.length>10?n.b.title.slice(0,10)+"…":n.b.title,n.x,n.y+24)});
-  },[books,mapKey]);
-  return <div className="map-wrap"><canvas ref={ref}/><div className="legend"><i/>책 <b/>연결 기준</div></div>
-}
-
 const newBooks = [
   {title:"혼모노",author:"성해나",publisher:"창비",year:2025,genre:"소설",why:"한국소설과 문예지를 높게 평가한 경우"},
   {title:"나의 미래에게",author:"장아미",publisher:"창비",year:2025,genre:"SF",why:"김초엽·천선란과 한국 SF를 좋아한 경우"},
@@ -106,7 +92,7 @@ export default function Home(){
     <section className="content"><header><div><p>2026년 7월 21일</p><h1>{title}</h1><span>{view==="list"?"사진에서 발견한 책을 한곳에서 살펴보세요.":view==="map"?"같은 취향의 책들이 어떻게 이어지는지 살펴보세요.":"별점이 쌓일수록 추천 순서가 더 내 취향에 가까워집니다."}</span></div><button className="scan" onClick={()=>alert("로컬 폴더에서 '책장 업데이트'를 실행하면 새 사진만 자동으로 반영됩니다.")}>↻ 새 사진 확인</button></header>
       <div className="stats"><article><span>보유 도서</span><strong>{active.length}<small>권</small></strong><p>사진 23장 기준</p></article><article><span>별점 등록</span><strong>{rated.length}<small>권</small></strong><p>평균 {rated.length?(rated.reduce((s,b)=>s+b.rating,0)/rated.length).toFixed(1):"-"}점</p></article><article className={reviews?"notice":""}><span>확인할 책</span><strong>{reviews}<small>권</small></strong><p>제목·정보 검토 필요</p></article></div>
       <div className="toolbar"><div className="tabs"><button className={view==="list"?"active":""} onClick={()=>setView("list")}>목록</button><button className={view==="map"?"active":""} onClick={()=>setView("map")}>관계 지도</button><button className={view==="recommend"?"active":""} onClick={()=>setView("recommend")}>추천</button></div>{view==="list"?<><label className="search">⌕<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="제목, 저자, 출판사 검색"/></label><select value={genre} onChange={e=>setGenre(e.target.value)}>{genres.map(g=><option key={g}>{g}</option>)}</select><button className="export" onClick={exportCsv}>CSV</button><button className="export" onClick={exportObsidian}>Obsidian</button></>:view==="map"?<label className="map-select">연결 기준<select value={mapKey} onChange={e=>setMapKey(e.target.value as typeof mapKey)}>{mapKeys.map(k=><option value={k} key={k}>{keyLabel[k]}</option>)}</select></label>:null}</div>
-      {view==="list"?<div className="table-card"><div className="table-title"><b>책 {visible.length}권</b><span>별을 눌러 내 취향을 기록하고, 검토 표시를 눌러 정보를 고치세요.</span></div><div className="book-table"><div className="tr head"><span>도서</span><span>분류</span><span>출판 정보</span><span>내 별점</span><span/></div>{visible.map(b=><div className={`tr ${b.hidden?"hidden-row":""}`} key={b.id}><div className="book"><i style={{background:b.color}}/><div><b>{b.title}</b><span>{b.author}</span>{b.confidence==="검토 필요"&&<button className="review" onClick={()=>reviewBook(b)}>검토 필요</button>}</div></div><div><mark>{b.genre}</mark><small>{b.language} · {b.shelf}</small></div><div className="pub"><b>{b.publisher}</b><span>{b.year??"연도 미확인"}</span></div><Stars value={b.rating} onChange={rating=>update(b.id,{rating})}/><button className="hide" onClick={()=>update(b.id,{hidden:!b.hidden})} title={b.hidden?"숨김 해제":"숨기기"}>{b.hidden?"보기":"숨김"}</button></div>)}</div><button className="hidden-toggle" onClick={()=>setShowHidden(v=>!v)}>{showHidden?"▴ 숨긴 책 닫기":"▾ 숨긴 책 보기"} <span>{books.filter(b=>b.hidden).length}</span></button></div>:view==="map"?<><div className="map-note"><span>{keyLabel[mapKey]}</span>이 같은 책끼리 연결했습니다. 숨긴 책은 지도에 표시되지 않습니다.</div><MapView books={visible} mapKey={mapKey}/></>:<div className="recommend-grid">{recommended.map((b,i)=><article key={b.title} className={favoriteGenres.has(b.genre)?"matched":""}><div className="rank">0{i+1}</div><mark>{b.genre} · {b.year}</mark><h2>{b.title}</h2><p>{b.author} · {b.publisher}</p><small>{favoriteGenres.has(b.genre)?"내 별점에서 발견한 취향":"취향 탐색 추천"} — {b.why}</small></article>)}</div>}
+      {view==="list"?<div className="table-card"><div className="table-title"><b>책 {visible.length}권</b><span>별을 눌러 내 취향을 기록하고, 검토 표시를 눌러 정보를 고치세요.</span></div><div className="book-table"><div className="tr head"><span>도서</span><span>분류</span><span>출판 정보</span><span>내 별점</span><span/></div>{visible.map(b=><div className={`tr ${b.hidden?"hidden-row":""}`} key={b.id}><div className="book"><i style={{background:b.color}}/><div><b>{b.title}</b><span>{b.author}</span>{b.confidence==="검토 필요"&&<button className="review" onClick={()=>reviewBook(b)}>검토 필요</button>}</div></div><div><mark>{b.genre}</mark><small>{b.language} · {b.shelf}</small></div><div className="pub"><b>{b.publisher}</b><span>{b.year??"연도 미확인"}</span></div><Stars value={b.rating} onChange={rating=>update(b.id,{rating})}/><button className="hide" onClick={()=>update(b.id,{hidden:!b.hidden})} title={b.hidden?"숨김 해제":"숨기기"}>{b.hidden?"보기":"숨김"}</button></div>)}</div><button className="hidden-toggle" onClick={()=>setShowHidden(v=>!v)}>{showHidden?"▴ 숨긴 책 닫기":"▾ 숨긴 책 보기"} <span>{books.filter(b=>b.hidden).length}</span></button></div>:view==="map"?<><div className="map-note"><span>{keyLabel[mapKey]}</span>기준으로 책을 연결하고, 관련된 그룹을 가깝게 배치했습니다. 숨긴 책은 표시되지 않습니다.</div><MapView books={visible} mapKey={mapKey}/></>:<div className="recommend-grid">{recommended.map((b,i)=><article key={b.title} className={favoriteGenres.has(b.genre)?"matched":""}><div className="rank">0{i+1}</div><mark>{b.genre} · {b.year}</mark><h2>{b.title}</h2><p>{b.author} · {b.publisher}</p><small>{favoriteGenres.has(b.genre)?"내 별점에서 발견한 취향":"취향 탐색 추천"} — {b.why}</small></article>)}</div>}
     </section>
   </main>
 }
