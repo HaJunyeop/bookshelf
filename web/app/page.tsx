@@ -4,6 +4,33 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import catalog from "../public/data/books.json";
 
 type Book = { id:number; title:string; author:string; publisher:string; year:number|null; genre:string; language:string; shelf:string; confidence:"확인"|"검토 필요"; color:string; rating:number; hidden:boolean; sourcePhoto?:string };
+const PASSWORD_HASH="b5ac8ff9fde613ff3122ffcab1cb500a6a18aa1464ca10d69a0b2e7c690a79d2";
+
+async function hashPassword(value:string){
+  const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));
+  return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,"0")).join("");
+}
+
+function PasswordGate({onUnlock}:{onUnlock:()=>void}){
+  const [password,setPassword]=useState(""),[error,setError]=useState(false),[busy,setBusy]=useState(false);
+  const submit=async(e:React.FormEvent)=>{
+    e.preventDefault();
+    if(password.length!==4)return;
+    setBusy(true);
+    const valid=await hashPassword(password)===PASSWORD_HASH;
+    if(valid){sessionStorage.setItem("bookshelf-access",PASSWORD_HASH);onUnlock()}
+    else{setError(true);setPassword("");setBusy(false)}
+  };
+  return <main className="gate-shell"><form className="gate-card" onSubmit={submit}>
+    <div className="gate-mark">책</div>
+    <p>PRIVATE LIBRARY</p>
+    <h1>책장</h1>
+    <span>비밀번호 4자리를 입력해 주세요.</span>
+    <input autoFocus aria-label="책장 비밀번호" inputMode="numeric" pattern="[0-9]*" autoComplete="current-password" maxLength={4} value={password} onChange={e=>{setPassword(e.target.value.replace(/\D/g,"").slice(0,4));setError(false)}} placeholder="••••" />
+    <button disabled={password.length!==4||busy}>{busy?"확인 중…":"책장 열기"}</button>
+    <small aria-live="polite">{error?"비밀번호가 맞지 않습니다.":"등록된 사용자만 열람할 수 있습니다."}</small>
+  </form></main>
+}
 
 const sampleSeed: Book[] = [
   {id:1,title:"회사를 믿고 떠난 한 달 살기",author:"조혜원 외",publisher:"글로벌미디어",year:2022,genre:"여행",language:"한국어",shelf:"서재 A-1",confidence:"확인",color:"#e7bd67",rating:4,hidden:false},
@@ -57,7 +84,9 @@ function saveFile(name:string,content:string,type="text/plain;charset=utf-8"){
 }
 
 export default function Home(){
+  const [unlocked,setUnlocked]=useState(false),[accessChecked,setAccessChecked]=useState(false);
   const [books,setBooks]=useState<Book[]>(seed),[view,setView]=useState<"list"|"map"|"recommend">("list"),[query,setQuery]=useState(""),[genre,setGenre]=useState("전체"),[mapKey,setMapKey]=useState<typeof mapKeys[number]>("genre"),[showHidden,setShowHidden]=useState(false);
+  useEffect(()=>{setUnlocked(sessionStorage.getItem("bookshelf-access")===PASSWORD_HASH);setAccessChecked(true)},[]);
   useEffect(()=>{const saved=localStorage.getItem("damso-books");if(saved)try{const old:Book[]=JSON.parse(saved);setBooks(seed.map(b=>({...b,...(old.find(o=>o.id===b.id||o.title===b.title)||{})}))) }catch{}},[]);
   useEffect(()=>{localStorage.setItem("damso-books",JSON.stringify(books))},[books]);
   const update=(id:number,patch:Partial<Book>)=>setBooks(bs=>bs.map(b=>b.id===id?{...b,...patch}:b));
@@ -70,8 +99,10 @@ export default function Home(){
   const favoriteGenres=new Set(rated.filter(b=>b.rating>=4).map(b=>b.genre));
   const recommended=[...newBooks].sort((a,b)=>Number(favoriteGenres.has(b.genre))-Number(favoriteGenres.has(a.genre)));
   const title=view==="list"?"내 책장":view==="map"?"책들의 관계 지도":"취향을 닮은 새 책";
+  if(!accessChecked)return <main className="gate-shell"/>;
+  if(!unlocked)return <PasswordGate onUnlock={()=>setUnlocked(true)}/>;
   return <main>
-    <aside><div className="brand"><span>담</span><div>나의 서재<small>책과 취향이 머무는 곳</small></div></div><nav><button className={view==="list"?"active":""} onClick={()=>setView("list")}>▤ <span>내 책장</span><em>{active.length}</em></button><button className={view==="map"?"active":""} onClick={()=>setView("map")}>✣ <span>관계 지도</span></button><button className={view==="recommend"?"active":""} onClick={()=>setView("recommend")}>✦ <span>추천 책</span><small>취향 기반</small></button></nav><div className="sync"><b>사진 자동 수집</b><span><i/>Photos 폴더 연결됨</span><p>23장 인식 완료</p></div></aside>
+    <aside><div className="brand"><span>책</span><div>책장<small>책과 취향이 머무는 곳</small></div></div><nav><button className={view==="list"?"active":""} onClick={()=>setView("list")}>▤ <span>내 책장</span><em>{active.length}</em></button><button className={view==="map"?"active":""} onClick={()=>setView("map")}>✣ <span>관계 지도</span></button><button className={view==="recommend"?"active":""} onClick={()=>setView("recommend")}>✦ <span>추천 책</span><small>취향 기반</small></button></nav><div className="sync"><b>사진 자동 수집</b><span><i/>Photos 폴더 연결됨</span><p>23장 인식 완료</p></div></aside>
     <section className="content"><header><div><p>2026년 7월 21일</p><h1>{title}</h1><span>{view==="list"?"사진에서 발견한 책을 한곳에서 살펴보세요.":view==="map"?"같은 취향의 책들이 어떻게 이어지는지 살펴보세요.":"별점이 쌓일수록 추천 순서가 더 내 취향에 가까워집니다."}</span></div><button className="scan" onClick={()=>alert("로컬 폴더에서 '책장 업데이트'를 실행하면 새 사진만 자동으로 반영됩니다.")}>↻ 새 사진 확인</button></header>
       <div className="stats"><article><span>보유 도서</span><strong>{active.length}<small>권</small></strong><p>사진 23장 기준</p></article><article><span>별점 등록</span><strong>{rated.length}<small>권</small></strong><p>평균 {rated.length?(rated.reduce((s,b)=>s+b.rating,0)/rated.length).toFixed(1):"-"}점</p></article><article className={reviews?"notice":""}><span>확인할 책</span><strong>{reviews}<small>권</small></strong><p>제목·정보 검토 필요</p></article></div>
       <div className="toolbar"><div className="tabs"><button className={view==="list"?"active":""} onClick={()=>setView("list")}>목록</button><button className={view==="map"?"active":""} onClick={()=>setView("map")}>관계 지도</button><button className={view==="recommend"?"active":""} onClick={()=>setView("recommend")}>추천</button></div>{view==="list"?<><label className="search">⌕<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="제목, 저자, 출판사 검색"/></label><select value={genre} onChange={e=>setGenre(e.target.value)}>{genres.map(g=><option key={g}>{g}</option>)}</select><button className="export" onClick={exportCsv}>CSV</button><button className="export" onClick={exportObsidian}>Obsidian</button></>:view==="map"?<label className="map-select">연결 기준<select value={mapKey} onChange={e=>setMapKey(e.target.value as typeof mapKey)}>{mapKeys.map(k=><option value={k} key={k}>{keyLabel[k]}</option>)}</select></label>:null}</div>
