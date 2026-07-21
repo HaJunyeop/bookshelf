@@ -97,7 +97,7 @@ export default function MapView({books,mapKey}:{books:MapBook[];mapKey:MapKey}){
   useEffect(()=>{
     const canvas=canvasRef.current;if(!canvas)return;
     const context=canvas.getContext("2d");if(!context)return;
-    const layout=createLayout(books,mapKey),view={x:0,y:0,scale:1,minScale:.15,maxScale:2.8};
+    const layout=createLayout(books,mapKey),view={x:0,y:0,scale:1,minScale:.56,maxScale:2.8};
     const pointers=new Map<number,{x:number;y:number}>();
     let initialized=false,pinch:null|{distance:number;center:{x:number;y:number};x:number;y:number;scale:number}=null;
 
@@ -106,8 +106,6 @@ export default function MapView({books,mapKey}:{books:MapBook[];mapKey:MapKey}){
       context.setTransform(dpr,0,0,dpr,0,0);context.clearRect(0,0,box.width,box.height);
       context.setTransform(dpr*s,0,0,dpr*s,dpr*view.x,dpr*view.y);
       for(const family of layout.families){
-        context.fillStyle="#f7f3ec";context.strokeStyle="#ddd3c5";context.lineWidth=1.2/s;
-        context.beginPath();context.roundRect(family.x,family.y,family.width,family.height,24/s);context.fill();context.stroke();
         context.fillStyle="#776f64";context.font=`600 ${13/s}px Arial`;context.textAlign="left";context.textBaseline="middle";context.fillText(family.name,family.x+22/s,family.y+29/s);
       }
       context.strokeStyle="#cfc4b5";context.lineWidth=1.1/s;
@@ -121,7 +119,7 @@ export default function MapView({books,mapKey}:{books:MapBook[];mapKey:MapKey}){
       layout.nodes.forEach(node=>{
         context.fillStyle=node.book.color||"#d1c7b8";context.beginPath();context.arc(node.x,node.y,9/s,0,Math.PI*2);context.fill();
         context.strokeStyle="#fff";context.lineWidth=2/s;context.stroke();
-        if(s>=.53){
+        if(s>=.82){
           const dx=Math.cos(node.angle)*15/s,dy=Math.sin(node.angle)*15/s;
           context.fillStyle="#4b4238";context.font=`${11/s}px Arial`;context.textBaseline="middle";context.textAlign=Math.cos(node.angle)>.25?"left":Math.cos(node.angle)<-.25?"right":"center";
           const title=node.book.title.length>17?node.book.title.slice(0,17)+"…":node.book.title;context.fillText(title,node.x+dx,node.y+dy);
@@ -132,12 +130,12 @@ export default function MapView({books,mapKey}:{books:MapBook[];mapKey:MapKey}){
     const sizeCanvas=()=>{
       const box=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
       canvas.width=Math.max(1,Math.round(box.width*dpr));canvas.height=Math.max(1,Math.round(box.height*dpr));
-      if(!initialized){const fit=Math.min(box.width/layout.width,box.height/layout.height)*.92;view.minScale=Math.max(.11,fit*.78);view.scale=Math.max(fit,Math.min(.64,Math.max(.38,fit*1.7)));view.x=(box.width-layout.width*view.scale)/2;view.y=(box.height-layout.height*view.scale)/2;initialized=true}
+      if(!initialized){const fit=Math.min(box.width/layout.width,box.height/layout.height)*.92;view.minScale=box.width<600?.62:.56;view.scale=Math.max(view.minScale,Math.min(.74,Math.max(view.minScale*1.08,fit*1.7)));view.x=(box.width-layout.width*view.scale)/2;view.y=(box.height-layout.height*view.scale)/2;initialized=true}
       draw();
     };
     const zoomAt=(factor:number,cx:number,cy:number)=>{const next=Math.min(view.maxScale,Math.max(view.minScale,view.scale*factor)),worldX=(cx-view.x)/view.scale,worldY=(cy-view.y)/view.scale;view.x=cx-worldX*next;view.y=cy-worldY*next;view.scale=next;draw()};
     zoomRef.current=factor=>{const box=canvas.getBoundingClientRect();zoomAt(factor,box.width/2,box.height/2)};
-    fitRef.current=()=>{const box=canvas.getBoundingClientRect();view.scale=Math.min(box.width/layout.width,box.height/layout.height)*.92;view.x=(box.width-layout.width*view.scale)/2;view.y=(box.height-layout.height*view.scale)/2;draw()};
+    fitRef.current=()=>{const box=canvas.getBoundingClientRect(),fit=Math.min(box.width/layout.width,box.height/layout.height)*.92;view.scale=Math.max(view.minScale,fit);view.x=(box.width-layout.width*view.scale)/2;view.y=(box.height-layout.height*view.scale)/2;draw()};
     const point=(event:PointerEvent)=>{const box=canvas.getBoundingClientRect();return{x:event.clientX-box.left,y:event.clientY-box.top}};
     const wheel=(event:WheelEvent)=>{event.preventDefault();const box=canvas.getBoundingClientRect();zoomAt(Math.exp(-event.deltaY*.0015),event.clientX-box.left,event.clientY-box.top)};
     const down=(event:PointerEvent)=>{canvas.setPointerCapture(event.pointerId);pointers.set(event.pointerId,point(event));pinch=null;canvas.classList.add("dragging")};
@@ -156,8 +154,8 @@ export default function MapView({books,mapKey}:{books:MapBook[];mapKey:MapKey}){
 
   return <div className="map-wrap">
     <canvas ref={canvasRef} role="img" aria-label={`${mapKey} 기준 책 관계 지도. 확대하거나 이동해서 각 묶음을 확인할 수 있습니다.`}/>
-    <div className="map-tools" aria-label="지도 확대와 축소"><button onClick={()=>zoomRef.current(1.28)} aria-label="확대">＋</button><button onClick={()=>zoomRef.current(.78)} aria-label="축소">－</button><button onClick={()=>fitRef.current()}>전체</button></div>
-    <div className="map-help">드래그하여 이동 · 휠 또는 두 손가락으로 확대</div>
+    <div className="map-tools" aria-label="지도 확대와 축소"><button onClick={()=>zoomRef.current(1.28)} aria-label="확대">＋</button><button onClick={()=>zoomRef.current(.78)} aria-label="축소">－</button><button onClick={()=>fitRef.current()}>초기화</button></div>
+    <div className="map-help">드래그 이동 · 휠/두 손가락 확대 · 확대하면 제목 표시</div>
     <div className="legend"><i/>책 <b/>연결 기준</div>
   </div>;
 }
